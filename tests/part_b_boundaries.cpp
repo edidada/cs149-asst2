@@ -1,6 +1,9 @@
 #include "tasksys.h"
 #include <atomic>
 #include <cstdlib>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -18,7 +21,35 @@ struct Node : IRunnable {
         ++calls;
     }
 };
+struct Overlap : IRunnable {
+    std::mutex mutex;
+    std::condition_variable cv;
+    int arrived = 0;
+    bool returned = false;
+    void runTask(int, int) override {
+        std::unique_lock<std::mutex> lock(mutex);
+        ++arrived;
+        cv.notify_all();
+        if (!cv.wait_for(lock, std::chrono::seconds(5), [&] {
+                return returned && arrived == 2;
+            })) std::abort();
+    }
+};
 int main() {
+    for (int threads : {2, 4, 8}) {
+        Overlap overlap;
+        TaskSystemParallelThreadPoolSleeping system(threads);
+        system.runAsyncWithDeps(&overlap, 1, {});
+        system.runAsyncWithDeps(&overlap, 1, {});
+        {
+            std::lock_guard<std::mutex> lock(overlap.mutex);
+            overlap.returned = true;
+        }
+        overlap.cv.notify_all();
+        system.sync();
+        if (overlap.arrived != 2) std::abort();
+    }
+    std::cout << "asynchronous independent-group overlap checks=3" << std::endl;
     int checked = 0;
     for (int threads : {1, 2, 4, 8}) {
         std::vector<std::unique_ptr<Node>> nodes;
