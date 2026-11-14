@@ -1,0 +1,31 @@
+name: CS149 Assignment2 Part A
+on:
+  push:
+    branches: [edidada/part-a]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Original bulk task tests
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          git rev-parse HEAD > evidence/commit.txt
+          lscpu > evidence/cpu.txt
+          cd part_a
+          make
+          for test in simple_test_sync ping_pong_equal ping_pong_unequal super_light super_super_light recursive_fibonacci math_operations_in_tight_for_loop math_operations_in_tight_for_loop_fewer_tasks math_operations_in_tight_for_loop_fan_in math_operations_in_tight_for_loop_reduction_tree spin_between_run_calls mandelbrot_chunked; do
+            timeout 120 ./runtasks -n 4 -i 1 "$test" > "../evidence/$test.txt"
+          done
+          g++ -std=c++11 -O1 -g -pthread -fsanitize=address,undefined -I. ../tests/bulk_boundaries.cpp tasksys.cpp -o /tmp/bulk-boundaries
+          /tmp/bulk-boundaries > ../evidence/boundaries.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: part-a-results
+          path: evidence/
