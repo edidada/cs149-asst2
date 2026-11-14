@@ -23,7 +23,7 @@ jobs:
             timeout 120 ./runtasks -n 4 -i 1 "$test" > "../evidence/$test.txt"
           done
           g++ -std=c++11 -O1 -g -pthread -fsanitize=address,undefined -I. ../tests/bulk_boundaries.cpp tasksys.cpp -o /tmp/bulk-boundaries
-          /tmp/bulk-boundaries > ../evidence/boundaries.txt
+          timeout 120 /tmp/bulk-boundaries > ../evidence/boundaries.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
